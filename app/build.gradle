@@ -1,0 +1,80 @@
+apply plugin: 'com.android.application'
+apply plugin: 'de.undercouch.download'
+
+
+
+android {
+    compileSdkVersion rootProject.ext.versionCompiler
+    defaultConfig {
+        applicationId "com.jiangdg.usbcamera"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.versionTarget
+        versionCode rootProject.ext.versionCode
+        versionName rootProject.ext.versionNameString
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    aaptOptions {
+        noCompress "tflite"
+    }
+    compileOptions {
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
+    }
+    lintOptions {
+        abortOnError false
+    }
+    flavorDimensions "tfliteInference"
+    productFlavors {
+       // The TFLite inference is built using the TFLite Java interpreter.
+       interpreter {
+           dimension "tfliteInference"
+       }
+       // Default: The TFLite inference is built using the TFLite Task library (high-level API).
+       taskApi {
+           getIsDefault().set(true)
+           dimension "tfliteInference"
+       }
+    }
+}
+
+
+
+// import DownloadModels task
+project.ext.ASSET_DIR = projectDir.toString() + '/src/main/assets'
+project.ext.TMP_DIR   = project.buildDir.toString() + '/downloads'
+
+// Download default models; if you wish to use your own models then
+// place them in the "assets" directory and comment out this line.
+apply from:'download_model.gradle'
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar','*.aar'])
+    implementation 'com.google.firebase:firebase-crashlytics-buildtools:2.9.1'
+    implementation 'androidx.databinding:databinding-runtime:7.2.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    interpreterImplementation project(":lib_interpreter")
+    taskApiImplementation project(":lib_task_api")
+    implementation 'androidx.appcompat:appcompat:1.0.0'
+    implementation 'androidx.coordinatorlayout:coordinatorlayout:1.0.0'
+    implementation 'com.google.android.material:material:1.0.0'
+
+    androidTestImplementation 'androidx.test.ext:junit:1.1.1'
+    androidTestImplementation 'com.google.truth:truth:1.0.1'
+    androidTestImplementation 'androidx.test:runner:1.2.0'
+    androidTestImplementation 'androidx.test:rules:1.1.0'
+
+    implementation 'org.tensorflow:tensorflow-lite-gpu:2.3.0'
+    implementation project(path: ':sdk_usb_camera')
+    implementation 'org.tensorflow:tensorflow-lite-gpu-delegate-plugin:0.4.0'
+    implementation 'org.tensorflow:tensorflow-lite-gpu:2.9.0'
+
+}
+
+
+
