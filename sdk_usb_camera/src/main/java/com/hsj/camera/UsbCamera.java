@@ -237,10 +237,10 @@ public final class UsbCamera {
 
 //=======================================Native Call================================================
 
-    private ByteBuffer frame;
+    public ByteBuffer frame;
     private IFrameCallback callback;
 
-    private void updateFrame() {
+    public void updateFrame() {
         if (callback != null) callback.onFrame(frame);
     }
 
