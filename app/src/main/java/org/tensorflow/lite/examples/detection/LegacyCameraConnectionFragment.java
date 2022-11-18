@@ -46,17 +46,13 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AlertDialog;
-
 import com.hsj.camera.IFrameCallback;
 import com.hsj.camera.UsbCamera;
-
 import org.tensorflow.lite.examples.detection.R;
 import org.tensorflow.lite.examples.detection.customview.AutoFitTextureView;
 import org.tensorflow.lite.examples.detection.env.ImageUtils;
 import org.tensorflow.lite.examples.detection.env.Logger;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -66,6 +62,8 @@ import java.util.List;
 
 @SuppressLint("ValidFragment")
 public class LegacyCameraConnectionFragment extends Fragment {
+  
+  private static final String TAG = "LegacyCameraConnectionFragment";
   private static final Logger LOGGER = new Logger();
   /** Conversion from screen rotation to JPEG orientation. */
   private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -76,13 +74,14 @@ public class LegacyCameraConnectionFragment extends Fragment {
     ORIENTATIONS.append(Surface.ROTATION_180, 270);
     ORIENTATIONS.append(Surface.ROTATION_270, 180);
   }
-Context context;
+  
+  Context context;
   //TODO Config Usb Camera vid, pid
-  private int vid, pid;
+  private int vid = 6408;
+  private int pid = 8977;
   // Frame width, height
   public static int width, height;
 
-  private UsbCamera camera;
   private Camera.PreviewCallback imageListener;
   private Size desiredSize;
   /** The layout identifier to inflate for this Fragment. */
@@ -98,52 +97,52 @@ Context context;
   private final TextureView.SurfaceTextureListener surfaceTextureListener =
           new TextureView.SurfaceTextureListener() {
             @Override
-            public void onSurfaceTextureAvailable(
-                    final SurfaceTexture texture, final int width, final int height) {
+            public void onSurfaceTextureAvailable(final SurfaceTexture texture, final int width, final int height) {
+              // open camera
+              Log.d(TAG, "onSurfaceTextureAvailable()");
               surface = new Surface(texture);
-
-              ///manually taken from another app
-              vid=6408;
-              pid=8977;
-              context=CameraActivity.getInstance().getContext();
-              startCamera();
+              openCamera();
             }
 
             @Override
-            public void onSurfaceTextureSizeChanged(
-                    final SurfaceTexture texture, final int width, final int height) {}
-
-            @Override
-            public boolean onSurfaceTextureDestroyed(final SurfaceTexture texture) {
-              return true;
-            }
+            public void onSurfaceTextureSizeChanged(final SurfaceTexture texture, final int width, final int height) {}
 
             @Override
             public void onSurfaceTextureUpdated(final SurfaceTexture texture) {}
+    
+            @Override
+            public boolean onSurfaceTextureDestroyed(final SurfaceTexture texture) {
+              //close camera
+              Log.d(TAG, "onSurfaceTextureDestroyed()");
+              closeCamera();
+              surface = null
+              return true;
+            }
           };
+  
   /** An additional thread for running tasks that shouldn't block the UI. */
   private HandlerThread backgroundThread;
 
-  public LegacyCameraConnectionFragment(
-          final Camera.PreviewCallback imageListener, final int layout, final Size desiredSize) {
+  public LegacyCameraConnectionFragment(final Camera.PreviewCallback imageListener, final int layout, final Size desiredSize) {
     this.imageListener = imageListener;
     this.layout = layout;
     this.desiredSize = desiredSize;
   }
-View rootview;
+  
+  View rootview;
+  
   @Override
-  public View onCreateView(
-          final LayoutInflater inflater, final ViewGroup container, final Bundle savedInstanceState) {
-    rootview=inflater.inflate(layout, container, false);
+  public View onCreateView(final LayoutInflater inflater, final ViewGroup container, final Bundle savedInstanceState) {
+    rootview = inflater.inflate(layout, container, false);
     textureView = (TextureView) rootview.findViewById(R.id.textureView2);
+    textureView.setSurfaceTextureListener(surfaceTextureListener);
     //refer orginal project for clarification.
-
     return rootview;
   }
 
   @Override
   public void onViewCreated(final View view, final Bundle savedInstanceState) {
-    textureView = (TextureView) rootview.findViewById(R.id.textureView2);
+    //textureView = (TextureView) rootview.findViewById(R.id.textureView2);
     //textureView=(AutoFitTextureView)view.findViewById(R.id.texture);for autofit function
   }
 
@@ -156,7 +155,8 @@ View rootview;
   @Override
   public void onResume() {
     super.onResume();
-    startBackgroundThread();
+    Log.e(TAG, "onResume()");
+    /*startBackgroundThread();
     // When the screen is turned off and turned back on, the SurfaceTexture is already
     // available, and "onSurfaceTextureAvailable" will not be called. In that case, we can open
     // a camera and start preview from here (otherwise, we wait until the surface is ready in
@@ -167,14 +167,24 @@ View rootview;
       //startCamera();
     } else {
       textureView.setSurfaceTextureListener(surfaceTextureListener);
-    }
+    }*/
   }
 
   @Override
   public void onPause() {
-    stopCamera();
-    stopBackgroundThread();
+    /*stopCamera();
+    stopBackgroundThread();*/
     super.onPause();
+     Log.e(TAG, "onPause()");
+  }
+  
+  @Override
+  public void onStop() {
+    super.onStop();
+     Log.e(TAG, "onStop()");
+    if(context != null && usbReceiver != null){
+      context.registerReceiver(usbReceiver);
+    }
   }
 
   /** Starts a background thread and its {@link Handler}. */
@@ -198,15 +208,54 @@ View rootview;
 
   private byte[] data;
   private Surface surface;
+  private UsbCamera camera;
   private UsbReceiver usbReceiver;
   private UsbDeviceConnection udc;
   private List<UsbCamera.SupportInfo> supportInfos = new ArrayList<>();
   private final String ACTION_USB = "com.hsj.camera.sample.USB_PERMISSION." + hashCode();
-
-
-
+  
+  private void openCamera() {
+    Log.d(TAG, "openCamera(.)");
+    if(context == null) {
+      Activity activity = getActivity();
+      if (activity != null){
+        context = activity.getContext();
+      }
+    }
+    if (context == null){
+      Log.e(TAG, "openCamera(.): context is null.");
+      return;
+    }
+    
+    if (usbReceiver == null) {
+      IntentFilter filter = new IntentFilter(ACTION_USB);
+      context.registerReceiver(usbReceiver = new UsbReceiver(), filter);
+    } 
+    
+    final UsbManager usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
+    Collection<UsbDevice> devices = usbManager.getDeviceList().values();
+    UsbDevice usbDevice = null;
+    for (UsbDevice device : devices){
+      if (vid == device.getVendorId() && pid == device.getProductId()){
+        usbDevice = device;
+        break;
+      }
+    }
+    
+    if (usbDevice == null){
+      Log.e(TAG, "openCamera(.): Please connect uvc camera or config vid and pid..");
+      showToast("Please connect uvc camera or config vid and pid.");
+    } else if (usbManager.hasPermission(usbDevice)) {
+      openCamera(usbManager, usbDevice);
+    } else {
+      Intent intent = new Intent(ACTION_USB);
+      PendingIntent pi = PendingIntent.getBroadcast(context, 0, intent, 0);
+      usbManager.requestPermission(usbDevice, pi);
+    }
+  }
 
   private void openCamera(UsbManager usbManager, UsbDevice device) {
+    Log.d(TAG, "openCamera(..)");
     if (camera == null) camera = new UsbCamera();
     UsbDeviceConnection connection = usbManager.openDevice(device);
     if (connection != null) {
@@ -217,33 +266,21 @@ View rootview;
         status = camera.getSupportInfo(supportInfos);
         if (UsbCamera.STATUS_OK == status && !supportInfos.isEmpty()) {
           UsbCamera.SupportInfo info = supportInfos.get(0);
-
-
           info.setFormatCallback(UsbCamera.PIXEL_FORMAT.PIXEL_FORMAT_NV21);
-          width = info.width;
-          height = info.height;
-
-          data = new byte[ImageUtils.getYUVByteSize(info.height,info.width)];
-
-
-         // textureView.setAspectRatio(info.height,info.width);only for autofittexture
+          width = info.width; height = info.height;
+          // NV21 size = width * height * 1.5
+          data = new byte[ImageUtils.getYUVByteSize(info.width, info.height)];
+          //textureView.setAspectRatio(info.height,info.width);only for autofittexture
 
           status = camera.setSupportInfo(info);
           if (UsbCamera.STATUS_OK == status) {
             camera.setFrameCallback(frameCallback);
-
             camera.setPreview(surface);
-
-
-
-
-
-
-
-
             status = camera.start();
-
-            if (UsbCamera.STATUS_OK != status) {
+            if (UsbCamera.STATUS_OK == status) {
+              Log.d(TAG, "openCamera(..) start working.");
+            }else{
+              Log.e(TAG, "openCamera(..) start failed.");
               showToast("start failed: " + status);
             }
           } else {
@@ -260,36 +297,10 @@ View rootview;
     }
   }
 
-
-  private void startCamera() {
-
-    if (usbReceiver == null) {
-      IntentFilter filter = new IntentFilter(ACTION_USB);
-     context.registerReceiver(usbReceiver = new UsbReceiver(), filter);
-    }
-    final UsbManager usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
-    Collection<UsbDevice> devices = usbManager.getDeviceList().values();
-    UsbDevice usbDevice = null;
-
-    for (UsbDevice device : devices){
-      if (vid == device.getVendorId() && pid == device.getProductId()){
-        usbDevice = device;
-        break;
-      }
-    }
-    if (usbDevice == null){
-      showToast("Please connect uvc camera or config vid and pid.");
-    } else if (usbManager.hasPermission(usbDevice)) {
-      openCamera(usbManager, usbDevice);
-    } else {
-      Intent intent = new Intent(ACTION_USB);
-      PendingIntent pi = PendingIntent.getBroadcast(context, 0, intent, 0);
-      usbManager.requestPermission(usbDevice, pi);
-    }
-  }
-
-  protected void stopCamera() {
+  protected void closeCamera() {
+    Log.d(TAG, "closeCamera()");
     if (this.camera != null) {
+      Log.d(TAG, "closeCamera() stop close destroy.");
       this.camera.stop();
       this.camera.close();
       this.camera.destroy();
@@ -315,13 +326,10 @@ View rootview;
     @Override
     public void onReceive(Context context, Intent intent) {
       if (ACTION_USB.equals(intent.getAction())) {
-
         UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
         if (device != null && intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
           openCamera((UsbManager) context.getSystemService(Context.USB_SERVICE), device);
           camera.start();
-
-
         } else {
           showToast("Usb Permission had been denied.");
         }

@@ -22,7 +22,7 @@ final class Logger {
 
     private static final int MAX_LENGTH = 5000;
 
-    public static boolean OPEN = false;
+    public static boolean OPEN = true;
 
     private Logger() {
 
