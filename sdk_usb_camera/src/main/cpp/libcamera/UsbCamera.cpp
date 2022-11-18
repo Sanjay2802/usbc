@@ -11,18 +11,24 @@ extern "C" {
 #endif
 
 UsbCamera::UsbCamera() : fd(0), process(nullptr), status(STATUS_INIT_NONE) {
-
+    LOGD("UsbCamera()");
 }
 
 UsbCamera::~UsbCamera() {
-
+    LOGD("~UsbCamera()");
 }
 
 //==================================================================================================
 
+bool is_frame = true;    
+    
 inline const StatusInfo UsbCamera::getStatus() const { return status; }
 
 static void frame_callback(uvc_frame_t *frame, void *args) {
+    if (is_frame) {
+        is_frame = false;
+        LOGD("frame_callback.");
+    }
     auto *process = reinterpret_cast<FrameProcess *>(args);
     //LOGD("frame_callback: %p", process);
     //saveFile("/sdcard/A.jpg", frame->data, frame->data_bytes);
@@ -46,6 +52,7 @@ static void frame_callback(uvc_frame_t *frame, void *args) {
 //==================================================================================================
 
 int UsbCamera::connectDevice(int _fd) {
+    LOGD("connectDevice()");
     int ret = STATUS_SUCCESS;
     uvc_error_t uvc_ret;
     //1. init uvc
@@ -80,6 +87,7 @@ int UsbCamera::connectDevice(int _fd) {
 }
 
 int UsbCamera::openDevice(int vendorId, int productId, int bus_num, int dev_num) {
+    LOGD("openDevice()");
     int ret = STATUS_SUCCESS;
     uvc_error_t uvc_ret;
     //1. init uvc
@@ -116,6 +124,7 @@ int UsbCamera::openDevice(int vendorId, int productId, int bus_num, int dev_num)
 }
 
 int UsbCamera::getSupportInfo(std::vector<SupportInfo> &supportInfo) {
+    LOGD("getSupportInfo()");
     int ret = STATUS_SUCCESS;
     if (getStatus() == STATUS_OPEN) {
         if (uvc_device_handle) {
@@ -157,6 +166,7 @@ int UsbCamera::getSupportInfo(std::vector<SupportInfo> &supportInfo) {
 }
 
 int UsbCamera::setSupportInfo(SupportInfo &configInfo) {
+    LOGD("setSupportInfo()");
     int ret = STATUS_SUCCESS;
     int _status = getStatus();
     if (_status == STATUS_OPEN || _status == STATUS_CONFIGURE) {
@@ -188,6 +198,7 @@ int UsbCamera::setSupportInfo(SupportInfo &configInfo) {
 }
 
 int UsbCamera::setFrameProcess(FrameProcess *_process) {
+    LOGD("setFrameProcess()");
     int ret = STATUS_SUCCESS;
     if(getStatus() == STATUS_CONFIGURE) {
         SAFE_DELETE(this->process);
@@ -200,9 +211,11 @@ int UsbCamera::setFrameProcess(FrameProcess *_process) {
 }
 
 int UsbCamera::setPreview(ANativeWindow *window) {
+    LOGD("setPreview()");
     int ret = STATUS_SUCCESS;
     if(getStatus() == STATUS_CONFIGURE) {
         if (process != nullptr) {
+            LOGD("startStream()..");
             process->setPreview(window);
         } else {
             ret = STATUS_ERROR_STEP;
@@ -215,6 +228,7 @@ int UsbCamera::setPreview(ANativeWindow *window) {
 }
 
 int UsbCamera::startStream() {
+    LOGD("startStream()");
     int ret = STATUS_SUCCESS;
     if(getStatus() == STATUS_CONFIGURE) {
         uvc_error_t uvc_ret = uvc_start_streaming(uvc_device_handle,
@@ -233,7 +247,9 @@ int UsbCamera::startStream() {
 }
 
 int UsbCamera::stopStream() {
+    LOGD("stopStream()");
     if(getStatus() == STATUS_RUN){
+        LOGD("stopStream()..");
         uvc_stop_streaming(uvc_device_handle);
         status = STATUS_CONFIGURE;
     } else {
@@ -243,9 +259,11 @@ int UsbCamera::stopStream() {
 }
 
 int UsbCamera::closeDevice() {
+    LOGD("closeDevice()");
     int ret = STATUS_SUCCESS;
     int _status = getStatus();
     if (_status == STATUS_OPEN || _status == STATUS_CONFIGURE){
+        LOGD("closeDevice()..");
         if (uvc_device_handle != nullptr) {
             uvc_close(uvc_device_handle);
             uvc_device_handle = nullptr;
@@ -266,7 +284,9 @@ int UsbCamera::closeDevice() {
 }
 
 void UsbCamera::destroy() {
+    LOGD("destroy()");
     if (getStatus() == STATUS_INIT_OK){
+        LOGD("destroy()..");
         if (uvc_context != nullptr) {
             uvc_exit(uvc_context);
             uvc_context = nullptr;
